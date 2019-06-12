@@ -86,16 +86,27 @@ func (b *Bridge) Data(key *ari.Key) (*ari.BridgeData, error) {
 // AddChannel adds a channel to a bridge
 // Equivalent to Post /bridges/{id}/addChannel
 func (b *Bridge) AddChannel(key *ari.Key, channelID string) (err error) {
-	id := key.ID
+	return b.AddChannelWithOptions(key, channelID, nil)
+}
 
-	type request struct {
-		ChannelID string `json:"channel"`
-		Role      string `json:"role,omitempty"`
+// AddChannelWithOptions adds a channel to a bridge, specifying additional options to be applied to that channel
+func (b *Bridge) AddChannelWithOptions(key *ari.Key, channelID string, options *ari.BridgeAddChannelOptions) error {
+	if options == nil {
+		options = new(ari.BridgeAddChannelOptions)
 	}
 
-	req := request{channelID, ""}
-	err = b.client.post("/bridges/"+id+"/addChannel", nil, &req)
-	return
+	req := struct {
+		AbsorbDTMF bool   `json:"absorbDTMF,omitempty"`
+		ChannelID  string `json:"channel"`
+		Mute       bool   `json:"mute,omitempty"`
+		Role       string `json:"role,omitempty"`
+	}{
+		AbsorbDTMF: options.AbsorbDTMF,
+		ChannelID:  channelID,
+		Mute:       options.Mute,
+		Role:       options.Role,
+	}
+	return b.client.post("/bridges/"+key.ID+"/addChannel", nil, &req)
 }
 
 // RemoveChannel removes the specified channel from a bridge
@@ -119,9 +130,22 @@ func (b *Bridge) RemoveChannel(key *ari.Key, channelID string) (err error) {
 // This means that the channels themselves are not deleted.
 // Equivalent to DELETE /bridges/{id}
 func (b *Bridge) Delete(key *ari.Key) (err error) {
-	id := key.ID
-	err = b.client.del("/bridges/"+id, nil, "")
-	return
+	return b.client.del("/bridges/"+key.ID, nil, "")
+}
+
+// MOH requests that the given musiconhold class be played to the bridge
+func (b *Bridge) MOH(key *ari.Key, class string) error {
+	req := struct {
+		Class string `json:"mohClass"`
+	}{
+		Class: class,
+	}
+	return b.client.post("/bridges/"+key.ID+"/moh", nil, &req)
+}
+
+// StopMOH requests that any MusicOnHold which is playing to the bridge be stopped.
+func (b *Bridge) StopMOH(key *ari.Key) error {
+	return b.client.del("/bridges/"+key.ID+"/moh", nil, "")
 }
 
 // Play attempts to play the given mediaURI on the bridge, using the playbackID

@@ -1,8 +1,12 @@
+GO111MODULE = on
+
 SHELL = /usr/bin/env bash
 
 EVENT_SPEC_FILE = internal/eventgen/json/events-2.0.0.json
 
-all: dep api clients contributors extensions
+all: dep check api clients contributors extensions test
+
+ci: check api clients extensions test
 
 contributors:
 	write_mailmap > CONTRIBUTORS
@@ -11,7 +15,7 @@ protobuf: ari.proto
 	protoc -I. -I./vendor --gogofast_out=Mgoogle/protobuf/timestamp.proto=github.com/gogo/protobuf/types,plugins=grpc:. ari.proto
 
 dep:
-	dep ensure
+	go mod tidy
 
 api:
 	go build ./
@@ -21,8 +25,10 @@ api:
 test:
 	go test `go list ./... | grep -v /vendor/`
 
-check: all
-	gometalinter --disable=gotype client/native ext/...
+check:
+	go mod verify
+	golangci-lint run
+	#gometalinter --disable=gotype client/native ext/...
 
 clients:
 	go build ./client/native
@@ -40,9 +46,7 @@ events:
 	@./bin/eventgen internal/eventgen/template.tmpl ${EVENT_SPEC_FILE} |goimports > events_gen.go
 	
 mock:
-	go get -u github.com/vektra/mockery/.../
+	go get -u github.com/vektra/mockery github.com/vektra/mockery/cmd/mockery
 	rm -Rf vendor/ client/arimocks
-	mockery -all -outpkg arimocks -output client/arimocks
-	dep ensure
+	mockery -name . -outpkg arimocks -output client/arimocks
 
-ci: check
